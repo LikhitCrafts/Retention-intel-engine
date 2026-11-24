@@ -1,105 +1,202 @@
 # Retention Intel Engine
 
-This project is an end-to-end Machine Learning inference service built using Python, pandas, scikit-learn, and FastAPI. It predicts customer churn probability in real time based on customer profile attributes.
+This project is an **end-to-end Machine Learning inference service** that predicts customer churn probability using a trained Random Forest classification model.
 
-The system separates offline model training from online REST API serving, ensuring reliable data validation, fast inference latency, and automated quality testing before deployment.
+The system analyzes customer information to identify the likelihood of churn, categorizes customers into different risk levels, monitors inference latency, validates incoming data, and detects potentially unusual input values.
+
+It uses a **decoupled ML architecture**, where model training and evaluation happen offline, while real-time predictions are served through a FastAPI REST API.
+
+---
 
 ## Features
-- Automated data cleaning, scaling, and encoding via `scikit-learn` `Pipeline`
-- Imbalanced class handling using `class_weight="balanced"` (78% Churn Recall, 0.8394 ROC-AUC)
-- Low-latency REST API built with FastAPI (`<15ms` inference response time)
-- Strict input validation using Pydantic schemas (blocks invalid/malformed inputs with `422` errors)
-- Out-of-distribution input monitoring (flags unusually high billing values as drift warnings)
-- Automated functional test suite using `pytest`
+
+- Predicts customer churn probability in real time
+- End-to-end ML pipeline using Scikit-learn
+- Random Forest classification with balanced class weights
+- Automated data preprocessing using ColumnTransformer
+- Input validation using Pydantic
+- REST API built with FastAPI
+- Customer risk categorization (Low, Medium, High)
+- Inference latency monitoring
+- Basic out-of-distribution input detection
+- Automated API testing using pytest
+- Serialized model loading for efficient inference
+
+---
 
 ## Project Structure
+
 ```text
 Retention-intel-engine/
-│── venv/                     # Virtual environment (ignored in Git)
-│── train.py                  # Data ingestion, preprocessing, model training & serialization
-│── retention_model.joblib    # Serialized ML pipeline artifact
-│── app.py                    # FastAPI server, Pydantic validation & /predict endpoint
-│── test_app.py               # Automated pytest functional test suite
-│── requirements.txt          # Project dependencies
-│── .gitignore                # Git ignore rules
-│── README.md                 # Project documentation
+│
+├── venv/                       # Python virtual environment
+│
+├── train.py                    # Data preprocessing, model training & evaluation
+├── retention_model.joblib      # Serialized ML pipeline
+├── app.py                      # FastAPI inference service
+├── test_app.py                 # Automated API tests
+├── requirements.txt            # Project dependencies
+├── .gitignore                  # Ignored files
+└── README.md                   # Project documentation
+```
 
-How It Works
-Offline Training (train.py)
+---
 
-Loads the IBM Telco Customer Churn dataset (7,043 customer records)
+## How It Works
 
-Cleans missing values and encodes target labels (Yes → 1, No → 0)
+### 1. Model Training (Offline)
 
-Splits data into stratified train (80%) and test (20%) sets
+- Fetches the IBM Telco Customer Churn dataset (7,043 records).
+- Cleans missing and invalid values.
+- Converts churn labels into numerical values (Yes = 1, No = 0).
+- Selects numerical and categorical features.
+- Splits data into 80% training and 20% testing.
+- Applies preprocessing using ColumnTransformer:
+  - Numerical: Median imputation + StandardScaler
+  - Categorical: Most frequent imputation + OneHotEncoder
+- Trains a RandomForestClassifier with balanced class weights.
+- Evaluates model performance.
+- Saves the complete ML pipeline as `retention_model.joblib`.
 
-Fits a ColumnTransformer (SimpleImputer, StandardScaler, OneHotEncoder) + RandomForestClassifier pipeline
+### 2. Real-Time Prediction (FastAPI)
 
-Evaluates Recall and ROC-AUC on unseen test data
+- Loads the trained model into memory.
+- Accepts customer information through a REST API.
+- Validates incoming data using Pydantic.
+- Predicts churn probability using `predict_proba()`.
+- Classifies customers into three risk categories:
 
-Saves the complete preprocessing and model pipeline to retention_model.joblib
+| Churn Probability | Risk Level |
+|---|---|
+| ≥ 0.65 | High |
+| ≥ 0.35 | Medium |
+| < 0.35 | Low |
 
-Live Inference (app.py)
+- Measures inference execution time in milliseconds.
+- Flags unusual inputs using a basic drift-checking rule.
 
-Loads retention_model.joblib into memory once at server startup
+### 3. API Endpoints
 
-Validates incoming JSON requests via Pydantic (CustomerProfile)
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Checks API and model health |
+| POST | `/predict` | Predicts customer churn probability |
 
-Runs prediction and returns churn probability, risk level (Low / Medium / High), latency in milliseconds, and any drift warnings
+### 4. Automated Testing
 
-Quality Assurance (test_app.py)
+Uses `pytest` and FastAPI TestClient to verify:
 
-Tests /health endpoint status
+- Health endpoint functionality.
+- Valid customer churn predictions.
+- Probability and risk-level outputs.
+- Invalid input rejection (HTTP 422).
 
-Verifies valid customer payloads return 200 OK with proper probability bounds
+---
 
-Verifies invalid inputs (e.g., negative tenure) are rejected with 422 Unprocessable Entity
+## Model Performance
 
-Requirements
-pandas
+The Random Forest model was evaluated on a test dataset containing 1,409 samples.
 
-scikit-learn
+| Metric | Result |
+|---|---:|
+| ROC-AUC Score | 0.8394 |
+| Accuracy | 76% |
+| Churn Recall | 0.78 |
+| Churn Precision | 0.53 |
+| Churn F1-Score | 0.63 |
+| Non-Churn Recall | 0.75 |
 
-fastapi
+---
 
-uvicorn
+## Technologies Used
 
-joblib
+1. Python 3.11
+2. Pandas
+3. NumPy
+4. Scikit-learn
+5. Joblib
+6. FastAPI
+7. Pydantic
+8. Uvicorn
+9. Pytest
+10. HTTPX
 
-pytest
+---
 
-httpx
+## How to Run
 
-DOS
-py -m venv venv
+### 1. Create Virtual Environment
+
+```bash
+py -3.11 -m venv venv
 venv\Scripts\activate
-py -m pip install --upgrade pip
+```
+
+### 2. Install Dependencies
+
+```bash
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-How to Run
-Step 1 — Train and save the ML pipeline:
+```
 
-DOS
+### 3. Train the Model
+
+```bash
 python train.py
-Step 2 — Run automated functional tests:
+```
 
-DOS
-pytest -v
-Step 3 — Start the live inference API server:
+This generates the serialized model:
 
-DOS
+```text
+retention_model.joblib
+```
+
+### 4. Start the API Server
+
+```bash
 uvicorn app:app --reload
-Open http://127.0.0.1:8000/docs in your browser to test live predictions via the interactive Swagger UI.
+```
 
-Notes
-Keeping preprocessing inside the scikit-learn Pipeline prevents data leakage and guarantees identical transformations during training and live API inference.
+API documentation:
 
-Ideal for demonstrating production-ready ML deployment, API integration, and automated testing.
+```text
+http://127.0.0.1:8000/docs
+```
 
-Future Improvements
-Add Docker containerization for cloud deployment
+### 5. Run Automated Tests
 
-Implement logging of live predictions to a SQLite/PostgreSQL database for historical drift tracking
+```bash
+pytest -v
+```
 
-Compare Random Forest against XGBoost and LightGBM with hyperparameter tuning
+Expected result:
 
-Add CI/CD GitHub Actions workflow to run pytest automatically on every push
+```text
+3 passed
+```
+
+---
+
+## Key Implementation Highlights
+
+- **Leakage-Free Preprocessing:** Uses Scikit-learn Pipeline and ColumnTransformer to ensure preprocessing is fitted only on training data.
+- **Class Imbalance Handling:** Uses `class_weight="balanced"` to improve minority-class churn detection.
+- **Efficient Inference:** Loads the serialized model once instead of loading it for every prediction.
+- **Schema Validation:** Rejects invalid customer inputs before model inference.
+- **Monitoring:** Tracks inference latency and flags unusual input values.
+- **Automated Testing:** Verifies API functionality and input validation.
+
+---
+
+## Future Improvements
+
+- Implement advanced data drift detection using statistical techniques.
+- Add model versioning and experiment tracking using MLflow.
+- Integrate a frontend dashboard for customer churn analytics.
+- Add Docker containerization and cloud deployment.
+- Implement continuous monitoring and model retraining.
+- Add explainable AI using SHAP feature importance.
+
+---
+
+**Note:** This project demonstrates a complete ML deployment workflow, covering data preprocessing, model training, evaluation, serialization, REST API development, inference monitoring, and automated testing.
