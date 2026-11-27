@@ -1,4 +1,4 @@
-# Retention Intel Engine
+# CUSTOMER CHURN RISK PREDICTION SYSTEM 
 
 This project is an **end-to-end Machine Learning inference service** that predicts customer churn probability using a trained Random Forest classification model.
 
